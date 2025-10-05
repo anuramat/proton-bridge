@@ -22,7 +22,6 @@ import (
 	"github.com/docker/docker-credential-helpers/pass"
 	"github.com/docker/docker-credential-helpers/secretservice"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/sys/execabs"
 )
 
 const (
@@ -41,29 +40,7 @@ func listHelpers() (Helpers, string) {
 		logrus.WithField("keychain", "SecretServiceDBus").Debug("Keychain is not available.")
 	}
 
-	if _, err := execabs.LookPath("gnome-keyring"); err == nil && isUsable(newSecretServiceHelper("")) {
-		helpers[SecretService] = newSecretServiceHelper
-		logrus.WithField("keychain", "SecretService").Info("Keychain is usable.")
-	} else {
-		logrus.WithField("keychain", "SecretService").Debug("Keychain is not available.")
-	}
-
-	if _, err := execabs.LookPath("pass"); err == nil && isUsable(newPassHelper("")) {
-		helpers[Pass] = newPassHelper
-		logrus.WithField("keychain", "Pass").Info("Keychain is usable.")
-	} else {
-		logrus.WithField("keychain", "Pass").Debug("Keychain is not available.")
-	}
-
 	defaultHelper := SecretServiceDBus
-
-	// If Pass is available, use it by default.
-	// Otherwise, if SecretService is available, use it by default.
-	if _, ok := helpers[Pass]; ok {
-		defaultHelper = Pass
-	} else if _, ok := helpers[SecretService]; ok {
-		defaultHelper = SecretService
-	}
 	return helpers, defaultHelper
 }
 
