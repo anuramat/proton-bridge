@@ -153,6 +153,8 @@ type Bridge struct {
 	// notificationStore is used for notification deduplication
 	notificationStore *notifications.Store
 
+	passwordMirror passwordMirror
+
 	// getHostVersion primarily used for testing the update logic - it should return an OS version
 	getHostVersion func(host types.Host) string
 }
@@ -329,6 +331,8 @@ func newBridge(
 		getHostVersion: func(host types.Host) string { return host.Info().OS.Version },
 	}
 
+	bridge.passwordMirror = newPasswordMirror(bridge)
+
 	bridge.serverManager = imapsmtpserver.NewService(context.Background(),
 		&bridgeSMTPSettings{b: bridge},
 		&bridgeIMAPSettings{b: bridge},
@@ -440,6 +444,8 @@ func (bridge *Bridge) init(tlsReporter TLSReporter) error {
 			}
 			return
 		}
+
+		bridge.mirrorSyncAll("startup load")
 
 		bridge.publish(events.AllUsersLoaded{})
 	})

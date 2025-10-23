@@ -337,4 +337,6 @@ func (bridge *Bridge) FactoryReset(ctx context.Context) {
 	if err := bridge.locator.Clear(bridge.vault.Path()); err != nil {
 		logPkg.WithError(err).Error("Failed to clear data paths")
 	}
+
+	bridge.mirrorSyncAll("factory reset")
 }

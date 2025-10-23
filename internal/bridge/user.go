@@ -287,8 +287,16 @@ func (bridge *Bridge) DeleteUser(ctx context.Context, userID string) error {
 			return fmt.Errorf("failed to delete use sync config")
 		}
 
+		mirrorID, err := bridge.mirrorIdentifier(userID)
+		if err != nil {
+			logUser.WithError(err).Warnf("Failed to resolve mirror identifier for user %s", userID)
+			mirrorID = userID
+		}
+
 		if err := bridge.vault.DeleteUser(userID); err != nil {
 			logUser.WithError(err).Error("Failed to delete vault user")
+		} else {
+			bridge.mirrorDeleteUser(mirrorID, "delete user")
 		}
 
 		bridge.publish(events.UserDeleted{
@@ -593,6 +601,8 @@ func (bridge *Bridge) addUserWithVault(
 	bridge.heartbeat.start()
 
 	user.PublishEvent(ctx, events.UserLoadedCheckResync{UserID: user.ID()})
+
+	bridge.mirrorSyncUser(apiUser.ID, vault.BridgePass(), "add user")
 
 	return nil
 }
