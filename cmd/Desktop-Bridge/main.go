@@ -94,6 +94,7 @@ func main() {
 				WithField("SentryID", sentry.GetProtectedHostname()).WithError(appErr).Error("Failed to initialize bridge")
 			return nil
 		})
+		os.Exit(1)
 	}
 }
 

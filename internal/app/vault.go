@@ -22,7 +22,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"path"
 	"runtime"
 
 	"github.com/ProtonMail/gluon/async"
@@ -80,7 +79,8 @@ func newVault(reporter *sentry.Reporter, locations *locations.Locations, keychai
 		lastUsedHelper string
 	)
 
-	if key, helper, err := loadVaultKey(vaultDir, keychains, featureFlags); err != nil {
+	key, helper, err := loadVaultKey(vaultDir, keychains, featureFlags)
+	if err != nil {
 		if errors.Is(err, keychain.ErrPreferredKeychainNotAvailable) {
 			if err := vault.IncrementKeychainFailedAttemptCount(vaultDir); err != nil {
 				logrus.WithError(err).Error("Failed to increment failed keychain attempt count")
@@ -98,19 +98,12 @@ func newVault(reporter *sentry.Reporter, locations *locations.Locations, keychai
 			}
 		}
 
-		logrus.WithError(err).Error("Could not load/create vault key")
-		insecure = true
-
-		// We store the insecure vault in a separate directory
-		vaultDir = path.Join(vaultDir, "insecure")
-
-		// Schedule the relevant observability metric for sending.
 		obsSender.AddMetrics(observabilitymetrics.GenerateVaultKeyFetchGenericErrorMetric())
-	} else {
-		vaultKey = key
-		lastUsedHelper = helper
-		logHashedVaultKey(vaultKey) // Log a hash of the vault key.
+		return nil, false, nil, fmt.Errorf("could not load vault key: %w", err)
 	}
+	vaultKey = key
+	lastUsedHelper = helper
+	logHashedVaultKey(vaultKey)
 
 	gluonCacheDir, err := locations.ProvideGluonCachePath()
 	if err != nil {
