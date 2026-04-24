@@ -38,20 +38,16 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func WithVault(reporter *sentry.Reporter, locations *locations.Locations, keychains *keychain.List, obsSender observability.BasicSender, featureFlags unleash.FeatureFlagStartupStore, panicHandler async.PanicHandler, fn func(*vault.Vault, bool, bool) error) error {
+func WithVault(reporter *sentry.Reporter, locations *locations.Locations, keychains *keychain.List, obsSender observability.BasicSender, featureFlags unleash.FeatureFlagStartupStore, panicHandler async.PanicHandler, fn func(*vault.Vault, bool) error) error {
 	logrus.Debug("Creating vault")
 	defer logrus.Debug("Vault stopped")
 
-	// Create the encVault.
-	encVault, insecure, corrupt, err := newVault(reporter, locations, keychains, obsSender, featureFlags, panicHandler)
+	encVault, corrupt, err := newVault(reporter, locations, keychains, obsSender, featureFlags, panicHandler)
 	if err != nil {
 		return fmt.Errorf("could not load/create vault: %w", err)
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"insecure": insecure,
-		"corrupt":  corrupt != nil,
-	}).Debug("Vault created")
+	logrus.WithField("corrupt", corrupt != nil).Debug("Vault created")
 
 	if corrupt != nil {
 		logrus.WithError(corrupt).Warn("Failed to load existing vault, vault has been reset")
@@ -62,30 +58,24 @@ func WithVault(reporter *sentry.Reporter, locations *locations.Locations, keycha
 
 	// GODT-1950: Add teardown actions (e.g. to close the vault).
 
-	return fn(encVault, insecure, corrupt != nil)
+	return fn(encVault, corrupt != nil)
 }
 
-func newVault(reporter *sentry.Reporter, locations *locations.Locations, keychains *keychain.List, obsSender observability.BasicSender, featureFlags unleash.FeatureFlagStartupStore, panicHandler async.PanicHandler) (*vault.Vault, bool, error, error) {
+func newVault(reporter *sentry.Reporter, locations *locations.Locations, keychains *keychain.List, obsSender observability.BasicSender, featureFlags unleash.FeatureFlagStartupStore, panicHandler async.PanicHandler) (*vault.Vault, error, error) {
 	vaultDir, err := locations.ProvideSettingsPath()
 	if err != nil {
-		return nil, false, nil, fmt.Errorf("could not get vault dir: %w", err)
+		return nil, nil, fmt.Errorf("could not get vault dir: %w", err)
 	}
 
 	logrus.WithField("vaultDir", vaultDir).Debug("Loading vault from directory")
 
-	var (
-		vaultKey       []byte
-		insecure       bool
-		lastUsedHelper string
-	)
-
-	key, helper, err := loadVaultKey(vaultDir, keychains, featureFlags)
+	vaultKey, lastUsedHelper, err := loadVaultKey(vaultDir, keychains, featureFlags)
 	if err != nil {
 		if errors.Is(err, keychain.ErrPreferredKeychainNotAvailable) {
 			if err := vault.IncrementKeychainFailedAttemptCount(vaultDir); err != nil {
 				logrus.WithError(err).Error("Failed to increment failed keychain attempt count")
 			}
-			return &vault.Vault{}, false, nil, err
+			return &vault.Vault{}, nil, err
 		}
 
 		if reporter != nil {
@@ -99,21 +89,19 @@ func newVault(reporter *sentry.Reporter, locations *locations.Locations, keychai
 		}
 
 		obsSender.AddMetrics(observabilitymetrics.GenerateVaultKeyFetchGenericErrorMetric())
-		return nil, false, nil, fmt.Errorf("could not load vault key: %w", err)
+		return nil, nil, fmt.Errorf("could not load vault key: %w", err)
 	}
-	vaultKey = key
-	lastUsedHelper = helper
 	logHashedVaultKey(vaultKey)
 
 	gluonCacheDir, err := locations.ProvideGluonCachePath()
 	if err != nil {
-		return nil, false, nil, fmt.Errorf("could not provide gluon path: %w", err)
+		return nil, nil, fmt.Errorf("could not provide gluon path: %w", err)
 	}
 
 	userVault, corrupt, err := vault.New(vaultDir, gluonCacheDir, vaultKey, panicHandler)
 	if err != nil {
 		obsSender.AddMetrics(observabilitymetrics.GenerateVaultCreationGenericErrorMetric())
-		return nil, false, corrupt, err
+		return nil, corrupt, err
 	}
 
 	if corrupt != nil {
@@ -131,7 +119,7 @@ func newVault(reporter *sentry.Reporter, locations *locations.Locations, keychai
 		}
 	}
 
-	return userVault, insecure, corrupt, nil
+	return userVault, corrupt, nil
 }
 
 // loadVaultKey - loads the key used to encrypt the vault alongside the keychain helper used to access it.

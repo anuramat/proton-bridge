@@ -425,15 +425,16 @@ func TestBridge_BadVaultKey(t *testing.T) {
 			require.ElementsMatch(t, []string{userID}, bridge.GetUserIDs())
 		})
 
-		// Start bridge with a bad vault key, the vault will be wiped and bridge will show no users.
-		withBridge(ctx, t, s.GetHostURL(), netCtl, locator, []byte("bad"), func(bridge *bridge.Bridge, _ *bridge.Mocks) {
-			require.Empty(t, bridge.GetUserIDs())
-		})
+		vaultDir, err := locator.ProvideSettingsPath()
+		require.NoError(t, err)
 
-		// Start bridge with a nil vault key, the vault will be wiped and bridge will show no users.
-		withBridge(ctx, t, s.GetHostURL(), netCtl, locator, nil, func(bridge *bridge.Bridge, _ *bridge.Mocks) {
-			require.Empty(t, bridge.GetUserIDs())
-		})
+		// A bad vault key should fail without wiping the vault.
+		_, _, err = vault.New(vaultDir, t.TempDir(), []byte("bad"), async.NoopPanicHandler{})
+		require.ErrorIs(t, err, vault.ErrDecryptFailed)
+
+		// A nil vault key should fail without wiping the vault.
+		_, _, err = vault.New(vaultDir, t.TempDir(), nil, async.NoopPanicHandler{})
+		require.ErrorIs(t, err, vault.ErrDecryptFailed)
 	})
 }
 

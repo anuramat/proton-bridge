@@ -310,7 +310,7 @@ func run(c *cli.Context) error {
 								// Pre-init the observability service, load the cached metrics.
 								return observability.WithObservability(locations, func(obsService *observability.Service) error {
 									// Unlock the encrypted vault.
-									return WithVault(reporter, locations, keychains, obsService, featureFlags, crashHandler, func(v *vault.Vault, insecure, corrupt bool) error {
+									return WithVault(reporter, locations, keychains, obsService, featureFlags, crashHandler, func(v *vault.Vault, corrupt bool) error {
 										if !v.Migrated() {
 											// Migrate old settings into the vault.
 											if err := migrateOldSettings(v); err != nil {
@@ -341,11 +341,6 @@ func run(c *cli.Context) error {
 										return withCookieJar(v, func(cookieJar http.CookieJar) error {
 											// Create a new bridge instance.
 											return withBridge(c, exe, locations, version, identifier, obsService, crashHandler, reporter, v, cookieJar, keychains, func(b *bridge.Bridge, eventCh <-chan events.Event) error {
-												if insecure {
-													logrus.Warn("The vault key could not be retrieved; the vault will not be encrypted")
-													b.PushError(bridge.ErrVaultInsecure)
-												}
-
 												if corrupt {
 													logrus.Warn("The vault is corrupt and has been wiped")
 													b.PushError(bridge.ErrVaultCorrupt)

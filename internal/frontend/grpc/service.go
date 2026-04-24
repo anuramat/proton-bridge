@@ -265,17 +265,6 @@ func (s *Service) WaitUntilFrontendIsReady() {
 
 // nolint:gocyclo
 func (s *Service) watchEvents() {
-	// GODT-1949 Better error events.
-	for _, err := range s.bridge.GetErrors() {
-		switch {
-		case errors.Is(err, bridge.ErrVaultCorrupt):
-			// _ = s.SendEvent(NewKeychainHasNoKeychainEvent())
-
-		case errors.Is(err, bridge.ErrVaultInsecure):
-			_ = s.SendEvent(NewKeychainHasNoKeychainEvent())
-		}
-	}
-
 	for event := range s.eventCh {
 		switch event := event.(type) {
 		case events.ConnStatusUp:

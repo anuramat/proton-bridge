@@ -384,11 +384,7 @@ func (f *frontendCLI) watchEvents(eventCh <-chan events.Event) { // nolint:gocyc
 
 	// GODT-1949: Better error events.
 	for _, err := range f.bridge.GetErrors() {
-		switch {
-		case errors.Is(err, bridge.ErrVaultCorrupt):
-			f.notifyCredentialsError()
-
-		case errors.Is(err, bridge.ErrVaultInsecure):
+		if errors.Is(err, bridge.ErrVaultCorrupt) {
 			f.notifyCredentialsError()
 		}
 	}
